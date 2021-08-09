@@ -1877,8 +1877,8 @@ pipeline {
     environment {
         PATH=sh(script:"echo $PATH:/usr/local/bin", returnStdout:true).trim()
         APP_NAME="petclinic"
-        APP_STACK_NAME="Call-${APP_NAME}-app-${BUILD_NUMBER}"
-        APP_REPO_NAME="clarusway-repo/${APP_NAME}-app-dev"
+        APP_STACK_NAME="Callet-${APP_NAME}-app-${BUILD_NUMBER}"
+        APP_REPO_NAME="claruswayset-repo/${APP_NAME}-app-dev"
         AWS_ACCOUNT_ID=sh(script:'export PATH="$PATH:/usr/local/bin" && aws sts get-caller-identity --query Account --output text', returnStdout:true).trim()
         AWS_REGION="us-east-1"
         ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
@@ -2497,6 +2497,16 @@ services:
       - clarusnet
     ports:
     - 9091:9090
+  
+  mysql-server:
+    image: mysql:5.7.8
+    environment: 
+      MYSQL_ROOT_PASSWORD: petclinic
+      MYSQL_DATABASE: petclinic
+    networks:
+      - clarusnet
+    ports:
+      - 3306:3306
 
 networks:
   clarusnet:
@@ -2748,7 +2758,6 @@ services:
     - 8081:8081
     labels:
       kompose.image-pull-secret: "regcred"
-      kompose.service.expose: "petclinic04.clarusway.us"
   visits-service:
     image: IMAGE_TAG_VISITS_SERVICE
     deploy:
@@ -2757,7 +2766,6 @@ services:
      - 8082:8082
     labels:
       kompose.image-pull-secret: "regcred"
-      kompose.service.expose: "petclinic04.clarusway.us"
   vets-service:
     image: IMAGE_TAG_VETS_SERVICE
     deploy:
@@ -2766,7 +2774,6 @@ services:
      - 8083:8083
     labels:
       kompose.image-pull-secret: "regcred"
-      kompose.service.expose: "petclinic04.clarusway.us"
   api-gateway:
     image: IMAGE_TAG_API_GATEWAY
     deploy:
@@ -2812,8 +2819,8 @@ services:
     environment: 
       MYSQL_ROOT_PASSWORD: petclinic
       MYSQL_DATABASE: petclinic
-      ports:
-      - 3306:3306
+    ports:
+    - 3306:3306
 ```
 
 * Install [conversion tool](https://kompose.io/installation/) named `Kompose` on your Jenkins Server. [User Guide](https://kompose.io/user-guide/#user-guide)
