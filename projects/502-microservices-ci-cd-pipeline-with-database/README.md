@@ -2777,12 +2777,13 @@ services:
   api-gateway:
     image: IMAGE_TAG_API_GATEWAY
     deploy:
-      replicas: 2
+      replicas: 1
     ports:
      - 8080:8080
     labels:
       kompose.image-pull-secret: "regcred"
-      kompose.service.expose: "petclinic04.clarusway.us"
+      kompose.service.expose: "petclinic07.clarusway.us"
+      kompose.service.type: "nodeport"
   tracing-server:
     image: openzipkin/zipkin
     environment:
@@ -2855,61 +2856,6 @@ kompose convert -f k8s/docker-compose.yml -o k8s/base
         command: ['sh', '-c', 'until nc -z discovery-server:8761; do echo waiting for discovery-server; sleep 2; done;']
 ``` 
 
-* Update `customers-service-ingress.yaml` file with following setup to pass the api requests to `customers service` microservice.
-
-```yaml
-metadata:
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-spec:
-  rules:
-  - host: petclinic.clarusway.us
-    http:
-      paths:
-      - backend:
-          serviceName: customers-service
-          servicePort: 8081
-        path: /api/gateway(/|$)(.*)
-      - backend:
-          serviceName: customers-service
-          servicePort: 8081
-        path: /api/customer(/|$)(.*)
-```
-
-* Update `visits-service-ingress.yaml` file with following setup to pass the api requests to `visits service` microservice.
-
-```yaml
-metadata:
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-spec:
-  rules:
-  - host: petclinic.clarusway.us
-    http:
-      paths:
-      - backend:
-          serviceName: visits-service
-          servicePort: 8082
-        path: /api/visit(/|$)(.*)
-```
-
-* Update `vets-service-ingress.yaml` file with following setup to pass the api requests to `vets service` microservice.
-
-```yaml
-metadata:
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-spec:
-  rules:
-  - host: petclinic.clarusway.us
-    http:
-      paths:
-      - backend:
-          serviceName: vets-service
-          servicePort: 8083
-        path: /api/vet(/|$)(.*)
-```
-
 * Create `kustomization-template.yml` file with following content and save under `k8s/base` folder.
 
 ```yaml
@@ -2921,6 +2867,7 @@ resources:
 - discovery-server-deployment.yaml
 - grafana-server-deployment.yaml
 - hystrix-dashboard-deployment.yaml
+- mysql-server-deployment.yaml
 - prometheus-server-deployment.yaml
 - tracing-server-deployment.yaml
 - vets-service-deployment.yaml
@@ -2932,14 +2879,12 @@ resources:
 - discovery-server-service.yaml
 - grafana-server-service.yaml
 - hystrix-dashboard-service.yaml
+- mysql-server-service.yaml
 - prometheus-server-service.yaml
 - tracing-server-service.yaml
 - vets-service-service.yaml
 - visits-service-service.yaml
 - api-gateway-ingress.yaml
-- customers-service-ingress.yaml
-- vets-service-ingress.yaml
-- visits-service-ingress.yaml
 
 images:
 - name: IMAGE_TAG_CONFIG_SERVER
@@ -2982,70 +2927,7 @@ kind: Deployment
 metadata:
   name: api-gateway
 spec:
-  replicas: 3
-
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: api-gateway
-spec:
-  rules:
-    - host: petclinic.clarusway.us
-      http:
-        paths:
-          - backend:
-              serviceName: api-gateway
-              servicePort: 8080
-
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: customers-service
-spec:
-  rules:
-  - host: petclinic.clarusway.us
-    http:
-      paths:
-      - backend:
-          serviceName: customers-service
-          servicePort: 8081
-        path: /api/gateway(/|$)(.*)
-      - backend:
-          serviceName: customers-service
-          servicePort: 8081
-        path: /api/customer(/|$)(.*)
-
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: vets-service
-spec:
-  rules:
-  - host: petclinic.clarusway.us
-    http:
-      paths:
-      - backend:
-          serviceName: vets-service
-          servicePort: 8083
-        path: /api/vet(/|$)(.*)
-
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: visits-service
-spec:
-  rules:
-  - host: petclinic.clarusway.us
-    http:
-      paths:
-      - backend:
-          serviceName: visits-service
-          servicePort: 8082
-        path: /api/visit(/|$)(.*)
+  replicas: 1
 ```
 
 * Create `kustomization.yml` and `replica-count.yml` files for production envrionment and save them under `k8s/prod` folder.
@@ -3066,7 +2948,7 @@ kind: Deployment
 metadata:
   name: api-gateway
 spec:
-  replicas: 5
+  replicas: 3
 ```
 
 * Install `kubectl` on Jenkins Server. [Install and Set up kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl)
@@ -3718,6 +3600,36 @@ docker push "${IMAGE_TAG_VETS_SERVICE}"
 docker push "${IMAGE_TAG_VISITS_SERVICE}"
 docker push "${IMAGE_TAG_GRAFANA_SERVICE}"
 docker push "${IMAGE_TAG_PROMETHEUS_SERVICE}"
+```
+
+- At this stage, we will use Amazon RDS instead of mysql pod and service. Create a mysql database on AWS RDS.
+
+  - Engine options: MySQL
+  - Version : 5.7.30
+  - Templates: Free tier
+  - DB instance identifier: petclinic
+  - Master username: root
+  - Master password: petclinic
+  - Public access: Yes
+  - Initial database name: petclinic
+
+- Delete mysql-server-deployment.yaml line from k8s/base/kustomization-template.yml file.
+
+- Update k8s/base/mysql-server-service.yaml as below.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose-local-db.yml
+    kompose.version: 1.22.0 (955b78124)
+  labels:
+    io.kompose.service: mysql-server
+  name: mysql-server
+spec:
+  type: ExternalName
+  externalName: petclinic.cbanmzptkrzf.us-east-1.rds.amazonaws.com # Change this line with the endpoint of your RDS.
 ```
 
 * Create a `Production Pipeline` on Jenkins with name of `petclinic-prod` with following script and configure a `github-webhook` to trigger the pipeline every `commit` on `master` branch. `Petclinic production pipeline` should be deployed on permanent prod-environment on `petclinic-cluster` Kubernetes cluster under `petclinic-prod-ns` namespace.
