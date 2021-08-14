@@ -3119,8 +3119,10 @@ git checkout feature/msp-23
 
   * Outbound rules;
 
-    * Allow SSH on port 22 to any node IP from a node created using Node Driver.
+    * Allow SSH protocol (TCP on port 22) to any node IP from a node created using Node Driver.
 
+    * Allow HTTP protocol (TCP on port 80) to all IP for getting updates.
+    
     * Allow HTTPS protocol (TCP on port 443) to `35.160.43.145/32`, `35.167.242.46/32`, `52.33.59.17/32` for catalogs of `git.rancher.io`.
 
     * Allow TCP on port 2376 to any node IP from a node created using Node Driver for Docker machine TLS port.
@@ -3134,7 +3136,7 @@ aws ec2 create-key-pair --region us-east-1 --key-name call-rancher.key --query K
 chmod 400 ~/.ssh/call-rancher.key
 ```
 
-* Launch an EC2 instance using `Ubuntu Server 20.04 LTS (HVM) ami-0885b1f6bd170450c  (64-bit x86)` with `t2.medium` type, 16 GB root volume,  `call-rke-cluster-sg` security group, `call-rke-role` IAM Role, `Name:Call-Rancher-Cluster-Instance` tag and `call-rancher.key` key-pair. Take note of `subnet id` of EC2. 
+* Launch an EC2 instance using `Ubuntu Server 20.04 LTS (HVM) (64-bit x86)` with `t2.medium` type, 16 GB root volume,  `call-rke-cluster-sg` security group, `call-rke-role` IAM Role, `Name:Call-Rancher-Cluster-Instance` tag and `call-rancher.key` key-pair. Take note of `subnet id` of EC2. 
 
 * Attach a tag to the `nodes (intances)`, `subnets` and `security group` for Rancher with `Key = kubernetes.io/cluster/Call-Rancher` and `Value = owned`.
   
@@ -3147,10 +3149,30 @@ sudo hostnamectl set-hostname rancher-instance-1
 # Update OS 
 sudo apt-get update -y
 sudo apt-get upgrade -y
-# Install and start Docker on Ubuntu 20.04
-sudo apt install docker.io -y  
+# Install and start Docker on Ubuntu 19.03
+# Update the apt package index and install packages to allow apt to use a repository over HTTPS
+sudo apt-get install \
+  apt-transport-https \
+  ca-certificates \
+  curl \
+  gnupg \
+  lsb-release
+# Add Docker’s official GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+# Use the following command to set up the stable repository
+echo \
+  "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+# Update packages
+sudo apt-get update
+# List the versions available in your repo
+apt-cache madison docker-ce
+
+# Since Rancher is not compatible (yet) with latest version of Docker install version 19.03.15 or earlier version using the version string (exp: 5:19.03.15~3-0~ubuntu-focal) from the second column
+sudo apt-get install docker-ce=<VERSION_STRING> docker-ce-cli=<VERSION_STRING> containerd.io
 sudo systemctl start docker
 sudo systemctl enable docker
+
 # Add ubuntu user to docker group
 sudo usermod -aG docker ubuntu
 newgrp docker
@@ -3408,9 +3430,15 @@ chmod +x /usr/local/bin/rancher
 rancher --version
 ```
   
-* Create Rancher API Key [Rancher API Key](https://rancher.com/docs/rancher/v2.x/en/user-settings/api-keys/#creating-an-api-key) to enable access to the `Rancher` server. 
+* Create Rancher API Key [Rancher API Key](https://rancher.com/docs/rancher/v2.x/en/user-settings/api-keys/#creating-an-api-key) to enable access to the `Rancher` server. Take note, `Access Key (username)` and `Secret Key (password)`.
 
 * Create a credentials with kind of `Username with password` on Jenkins Server using the `Rancher API Key`.
+
+  * On jenkins server, select Manage Jenkins --> Manage Credentials --> Jenkins --> 	Global credentials (unrestricted) --> Add Credentials.
+
+  * Paste `Access Key (username)` to Username field and `Secret Key (password)` to Password field.
+
+  * Define an id like `rancher-petclinic-credentials`.
 
 * Create a Staging Pipeline on Jenkins with name of `petclinic-staging` with following script and configure a `cron job` to trigger the pipeline every Sundays at midnight (`59 23 * * 0`) on `release` branch. `Petclinic staging pipeline` should be deployed on permanent staging-environment on `petclinic-cluster` Kubernetes cluster under `petclinic-staging-ns` namespace.
 
@@ -3427,7 +3455,7 @@ pipeline {
         AWS_REGION="us-east-1"
         ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         RANCHER_URL="https://rancher.clarusway.us"
-        // Get the project-id from Rancher UI
+        // Get the project-id from Rancher UI (petclinic-cluster-staging namespace, View in API, copy projectId )
         RANCHER_CONTEXT="petclinic-cluster:project-id" 
         RANCHER_CREDS=credentials('rancher-petclinic-credentials')
     }
@@ -3499,6 +3527,8 @@ pipeline {
     }
 }
 ```
+
+* Create an `A` record of `staging-petclinic.clarusway.us` in your hosted zone (in our case `clarusway.us`) using AWS Route 53 domain registrar and bind it to your `petclinic cluster`.
 
 * Commit the change, then push the script to the remote repo.
 
