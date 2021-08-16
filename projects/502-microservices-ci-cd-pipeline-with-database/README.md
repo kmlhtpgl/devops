@@ -3803,13 +3803,13 @@ kubectl get ns
     kubectl create namespace cert-manager
   ```
 
-  * Add the Jetstack Helm reposito
+  * Add the Jetstack Helm repository.
 
   ```bash
   helm repo add jetstack https://charts.jetstack.io
   ```
 
-  * Update your local Helm chart repository cac
+  * Update your local Helm chart repository.
 
   ```bash
   helm repo update
@@ -3818,7 +3818,7 @@ kubectl get ns
   * Install the `Custom Resource Definition` resources separately
 
   ```bash
-  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.1.0/cert-manager.crds.yaml
+  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.0/cert-manager.crds.yaml
   ```
 
   * Install the cert-manager Helm chart
@@ -3827,7 +3827,7 @@ kubectl get ns
   helm install \
   cert-manager jetstack/cert-manager \
   --namespace cert-manager \
-  --version v1.0.4
+  --version v1.5.0
   ```
 
   * Verify that the cert-manager is deployed correctly.
@@ -3836,7 +3836,7 @@ kubectl get ns
   kubectl get pods --namespace cert-manager -o wide
   ```
 
-* Create `ClusterIssuer` with name of `tls-cluster-issuer-prod.yml` for the production certificate through `Let's Encrypt ACME` with following content by importing YAML file on Ranhcer and save it under `k8s` folder. *Note that certificate will only be created after annotating and updating the `Ingress` resource.*
+* Create `ClusterIssuer` with name of `tls-cluster-issuer-prod.yml` for the production certificate through `Let's Encrypt ACME` (Automated Certificate Management Environment) with following content by importing YAML file on Ranhcer and save it under `k8s` folder. *Note that certificate will only be created after annotating and updating the `Ingress` resource.*
 
 ```yaml
 apiVersion: cert-manager.io/v1
